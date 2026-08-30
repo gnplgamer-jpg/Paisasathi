@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Lock, PlaySquare, Sparkles, TrendingDown, Target, ShieldAlert, X } from 'lucide-react';
 import { Transaction } from '../types';
 import { formatCurrency } from '../utils/currency';
+import { Capacitor } from '@capacitor/core';
+import { UnityAds } from 'capacitor-unity-ads';
 
 interface PremiumProTipsProps {
   transactions: Transaction[];
@@ -33,10 +35,21 @@ export function PremiumProTips({ transactions, currency }: PremiumProTipsProps) 
     }
   }, []);
 
+  // Initialize native Unity Ads if on mobile
+  useEffect(() => {
+    if (Capacitor.isNativePlatform()) {
+      UnityAds.initialize({ gameId: UNITY_GAME_ID, testMode: false })
+        .then(() => {
+          UnityAds.loadRewardedVideo({ placementId: 'Rewarded_Android' }).catch(console.error);
+        })
+        .catch(console.error);
+    }
+  }, []);
+
   const requiredAds = 2;
   const isUnlocked = adsWatched >= requiredAds;
 
-  const handleWatchAd = () => {
+  const runSimulationAd = () => {
     setIsWatchingAd(true);
     setAdTimeLeft(5);
     
@@ -51,6 +64,33 @@ export function PremiumProTips({ transactions, currency }: PremiumProTipsProps) 
         return prev - 1;
       });
     }, 1000);
+  };
+
+  const handleWatchAd = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const { loaded } = await UnityAds.isRewardedVideoLoaded();
+        if (loaded) {
+          const result = await UnityAds.showRewardedVideo();
+          if (result.success) {
+            setAdsWatched(prev => prev + 1);
+            UnityAds.loadRewardedVideo({ placementId: 'Rewarded_Android' }).catch(console.error);
+          } else {
+            console.warn("Native Ad not successful, falling back to simulation");
+            runSimulationAd();
+          }
+        } else {
+          console.warn("Native Ad not loaded yet, loading now & falling back to simulation");
+          UnityAds.loadRewardedVideo({ placementId: 'Rewarded_Android' }).catch(console.error);
+          runSimulationAd();
+        }
+      } catch (e) {
+        console.error("Unity Ads Error", e);
+        runSimulationAd(); // Fallback if plugin fails
+      }
+    } else {
+      runSimulationAd(); // Run simulation on web preview
+    }
   };
 
   // AI Logic based on transactions
