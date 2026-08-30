@@ -1,0 +1,6 @@
+{
+  "appId": "com.chanel.merowallet",
+  "appName": "Mero Wallet",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
